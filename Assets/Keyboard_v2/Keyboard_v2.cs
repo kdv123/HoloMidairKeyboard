@@ -6,11 +6,16 @@ using TMPro;
 public class Keyboard_v2 : MonoBehaviour
 {
 
-    public Key[] keys = new Key[48]; // Array to store all Keys. First 10 elements should be number keys in numerical order, followed by letter keys in alphabetical order, followed by all remaining symbol keys from left to right, then up to down.
+    public Key[] keys = new Key[48]; // Array to store all Keys.
     public Key backspace;
     public Key capslock;
     public Key leftshift;
     public Key rightshift;
+    public Key spacebar;
+    public bool multifinger;
+    public float defaultThreshold = 0.5f;
+    public float spacebarThreshold = 0.9f;
+    public float cooldownTime = 0.5f;
 
     public TextMeshPro displayText;
 
@@ -19,11 +24,20 @@ public class Keyboard_v2 : MonoBehaviour
     bool shifted = false;
     bool capslocked = false;
     bool cursorOn = false;
+    bool cooldown = false;
 
 
     private void Start()
     {
         InvokeRepeating("blinkCursor", 0f, 0.75f);
+        if (multifinger)
+        {
+            foreach (Key key in keys)
+            {
+                key.GetComponent<Key_Multifinger>().setThreshold(defaultThreshold);
+            }
+            spacebar.GetComponent<Key_Multifinger>().setThreshold(spacebarThreshold);
+        }
     }
 
 
@@ -33,13 +47,19 @@ public class Keyboard_v2 : MonoBehaviour
      */
     public void keyPressed(Key key)
     {
-        value = key.getValue();
-        typed += value;
-        displayText.text = cursorOn ? typed + "_" : typed;
+        if (!cooldown)
+        {
+            value = key.getValue();
+            typed += value;
+            displayText.text = cursorOn ? typed + "_" : typed;
+            key.playAudio();
 
-        Debug.Log(value);
+            if (shifted) updateShift();
+            key.setActive();
 
-        if (shifted) updateShift();
+            cooldown = true;
+            StartCoroutine("runCooldown");
+        }
     }
 
 
@@ -48,10 +68,17 @@ public class Keyboard_v2 : MonoBehaviour
      */
     public void backspacePressed()
     {
-        typed = typed.Substring(0, typed.Length - 1);
-        displayText.text = cursorOn ? typed + "_" : typed; ;
+        if(!cooldown)
+        {
+            typed = typed.Substring(0, typed.Length - 1);
+            displayText.text = cursorOn ? typed + "_" : typed;
+            backspace.playAudio();
+            backspace.setActive();
 
-        Debug.Log("BACKSPACE PRESSED");
+            cooldown = true;
+            StartCoroutine("runCooldown");
+        }
+        
     }
 
 
@@ -60,8 +87,15 @@ public class Keyboard_v2 : MonoBehaviour
      */
     public void updateShift()
     {
-        shifted = !shifted;
-        updateCase();
+        if (!cooldown)
+        {
+            shifted = !shifted;
+            updateCase();
+            leftshift.playAudio();
+
+            cooldown = true;
+            StartCoroutine("runCooldown");
+        }
     }
 
 
@@ -70,8 +104,15 @@ public class Keyboard_v2 : MonoBehaviour
      */
     public void updateCaps()
     {
-        capslocked = !capslocked;
-        updateCase();
+        if (!cooldown)
+        {
+            capslocked = !capslocked;
+            updateCase();
+            capslock.playAudio();
+
+            cooldown = true;
+            StartCoroutine("runCooldown");
+        }
     }
 
 
@@ -131,5 +172,11 @@ public class Keyboard_v2 : MonoBehaviour
     {
         cursorOn = !cursorOn;
         displayText.text = cursorOn ? typed + "_" : typed;
+    }
+
+    private IEnumerator runCooldown()
+    {
+        yield return new WaitForSeconds(cooldownTime);
+        cooldown = false;
     }
 }

@@ -39,13 +39,16 @@ public class Key_Multifinger : MonoBehaviour
     {
         isPressed = true;
         onPressed.Invoke();
-        Debug.Log("Pressed");
     }
 
     private void Released()
     {
         isPressed = false;
         onReleased.Invoke();
-        Debug.Log("Released");
+    }
+
+    public void setThreshold(float t)
+    {
+        threshold = t;
     }
 }
