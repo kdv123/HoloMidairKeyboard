@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
+/**
+ * Author      : Cecilia Schmitz
+ * Email       : cmschmit@mtu.edu
+ * Description : Contains all methods and key processing for the index-finger keyboard
+ */
 public class Keyboard_v2 : MonoBehaviour
 {
 
@@ -12,32 +17,21 @@ public class Keyboard_v2 : MonoBehaviour
     public Key leftshift;
     public Key rightshift;
     public Key spacebar;
-    public bool multifinger;
-    public float defaultThreshold = 0.5f;
-    public float spacebarThreshold = 0.9f;
-    public float cooldownTime = 0.5f;
+    public float cooldownTime = 0.5f; // Time in seconds between registered key presses
 
-    public TextMeshPro displayText;
+    public TextMeshPro displayText; // The textmeshpro to output the typed string to
 
-    string typed = "";
-    char value;
-    bool shifted = false;
-    bool capslocked = false;
-    bool cursorOn = false;
-    bool cooldown = false;
+    string typed = ""; // Keeps track of what has been typed
+    char value; // Temporarily stores the value of a pressed key
+    bool shifted = false; // Whether or not a shift key is toggled
+    bool capslocked = false; // Whether or not the capslock is toggled
+    bool cursorOn = false; // Whether or not the cursor is on
+    bool cooldown = false; // Whether or not the cooldown is active
 
 
     private void Start()
     {
         InvokeRepeating("blinkCursor", 0f, 0.75f);
-        if (multifinger)
-        {
-            foreach (Key key in keys)
-            {
-                key.GetComponent<Key_Multifinger>().setThreshold(defaultThreshold);
-            }
-            spacebar.GetComponent<Key_Multifinger>().setThreshold(spacebarThreshold);
-        }
     }
 
 

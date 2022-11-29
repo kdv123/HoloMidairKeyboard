@@ -5,11 +5,18 @@ using Microsoft;
 using Microsoft.MixedReality.Toolkit.Utilities;
 using Microsoft.MixedReality.Toolkit.Input;
 
+/**
+ * Author      : Cecilia Schmitz
+ * Email       : cmschmit@mtu.edu
+ * Description : Tracks the fingertips on both hands and adds colliders to them.
+ *             : NOTE: In order to use the index-finger keyboard, this script must NOT be active
+ */
 public class HandTracking : MonoBehaviour
 {
 
-    public GameObject fingerCollider;
+    public GameObject fingerCollider; // Fingertip collider prefab
 
+    // Objects to store fingertip collider prefabs
     GameObject right_thumb;
     GameObject right_index;
     GameObject right_middle;
@@ -22,10 +29,11 @@ public class HandTracking : MonoBehaviour
     GameObject left_ring;
     GameObject left_pinky;
 
-    MixedRealityPose pose;
+    MixedRealityPose pose; // Pose to temporarily store fetched hand joints
 
     void Start()
     {
+        // Instantiate all finger collider prefabs
         right_thumb = Instantiate(fingerCollider, this.transform);
         right_index = Instantiate(fingerCollider, this.transform);
         right_middle = Instantiate(fingerCollider, this.transform);
@@ -41,6 +49,7 @@ public class HandTracking : MonoBehaviour
 
     void FixedUpdate()
     {
+        // For each fingertip joint: Check if it exists (i.e. the Hololens can see the joint), and if so, attach the associated collider
         if (HandJointUtils.TryGetJointPose(TrackedHandJoint.ThumbTip, Handedness.Right, out pose))
         {
             right_thumb.GetComponent<Renderer>().enabled = true;

@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
+/**
+ * Author      : Cecilia Schmitz
+ * Email       : cmschmit@mtu.edu
+ * Description : Contains all methods for keys (used in both keyboards)
+ */
 public class Key : MonoBehaviour
 {
 
@@ -53,6 +58,9 @@ public class Key : MonoBehaviour
         return islower ? valueOnLowercase : valueOnUppercase;
     }
 
+    /**
+     * Description: Plays an audioclip when a key is pressed
+     */
     public void playAudio()
     {
         if (audio != null)
@@ -61,6 +69,9 @@ public class Key : MonoBehaviour
         }
     }
 
+    /**
+     * Description: "Activates" the surface light of the key, providing visual feedback to the user
+     */
     public void setActive()
     {
         Color c = activeLight.material.color;
@@ -68,6 +79,9 @@ public class Key : MonoBehaviour
         activeLight.material.color = c;
     }
 
+    /**
+     * Description: "Deactivates" the surface light of the key, providing visual feedback to the user
+     */
     public void setInactive()
     {
         Color c = activeLight.material.color;
