@@ -49,7 +49,7 @@ public class Keyboard : MonoBehaviour
      */
     public void keyPressed(Key key)
     {
-        if (!cooldown)
+        if (!cooldown && key.getEnabled())
         {
             value = key.getValue();
             typed += value;
@@ -70,7 +70,7 @@ public class Keyboard : MonoBehaviour
      */
     public void backspacePressed()
     {
-        if (!cooldown)
+        if (!cooldown && backspace.getEnabled())
         {
             typed = typed.Substring(0, typed.Length - 1);
             displayText.text = cursorOn ? typed + "_" : typed;
@@ -89,7 +89,7 @@ public class Keyboard : MonoBehaviour
      */
     public void updateShift()
     {
-        if (!cooldown)
+        if (!cooldown && (leftshift.getEnabled() || rightshift.getEnabled()))
         {
             shifted = !shifted;
             updateCase();
@@ -97,6 +97,15 @@ public class Keyboard : MonoBehaviour
 
             cooldown = true;
             StartCoroutine("runCooldown");
+            if(shifted)
+            {
+                leftshift.setActive();
+                rightshift.setActive();
+            } else
+            {
+                leftshift.setInactive();
+                rightshift.setInactive();
+            }
         }
     }
 
@@ -106,7 +115,7 @@ public class Keyboard : MonoBehaviour
      */
     public void updateCaps()
     {
-        if (!cooldown)
+        if (!cooldown && capslock.getEnabled())
         {
             capslocked = !capslocked;
             updateCase();
@@ -114,6 +123,10 @@ public class Keyboard : MonoBehaviour
 
             cooldown = true;
             StartCoroutine("runCooldown");
+            if (capslocked)
+                capslock.setActive();
+            else
+                capslock.setInactive();
         }
     }
 

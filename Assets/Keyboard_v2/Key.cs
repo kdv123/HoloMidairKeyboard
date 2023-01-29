@@ -19,9 +19,11 @@ public class Key : MonoBehaviour
     private AudioSource audio; // Audio clip to play when pressed
 
     bool islower = true; // Whether or not the key is currently uppercased or lowercased
+    bool isEnabled = true; // Whether or not the key is currently enabled
 
     public TextMeshPro tmp; // The TextMeshPro displaying the key text
     public Renderer activeLight; // The light to activate when the key is pressed
+    public Renderer disabledLight; // The light to activate when the key is disabled
 
 
     void Start()
@@ -87,5 +89,26 @@ public class Key : MonoBehaviour
         Color c = activeLight.material.color;
         c.a = 0;
         activeLight.material.color = c;
+    }
+
+    public void setEnabled()
+    {
+        Color c = disabledLight.material.color;
+        c.a = 0;
+        disabledLight.material.color = c;
+        isEnabled = true;
+    }
+
+    public void setDisabled()
+    {
+        Color c = disabledLight.material.color;
+        c.a = 255;
+        disabledLight.material.color = c;
+        isEnabled = false;
+    }
+
+    public bool getEnabled()
+    {
+        return isEnabled;
     }
 }

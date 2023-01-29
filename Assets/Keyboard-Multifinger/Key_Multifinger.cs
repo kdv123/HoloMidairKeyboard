@@ -41,6 +41,7 @@ public class Key_Multifinger : MonoBehaviour
     {
         float value = Vector3.Distance(startPosition, transform.localPosition) / joint.linearLimit.limit;
         if (Mathf.Abs(value) < deadzone) value = 0;
+        if (transform.localPosition.y > startPosition.y) value = 0;
 
         return Mathf.Clamp(value, -1, 1);
     }
