@@ -107,6 +107,14 @@ public class Key : MonoBehaviour
         isEnabled = false;
     }
 
+    public void disableWithoutLight()
+    {
+        Color c = disabledLight.material.color;
+        c.a = 0;
+        disabledLight.material.color = c;
+        isEnabled = false;
+    }
+
     public bool getEnabled()
     {
         return isEnabled;

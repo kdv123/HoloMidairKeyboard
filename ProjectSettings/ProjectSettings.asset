@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: DefaultCompany
-  productName: MRTK KeyBoard Experiment 1
+  productName: MRTK KeyBoard Experiment 2
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -607,11 +607,11 @@ PlayerSettings:
   m_MobileRenderingPath: 1
   metroPackageName: MRTKKeyBoardExperiment1
   metroPackageVersion: 1.0.0.0
-  metroCertificatePath: Assets\WSATestCertificate.pfx
+  metroCertificatePath: Assets/WSATestCertificate.pfx
   metroCertificatePassword: 
   metroCertificateSubject: DefaultCompany
   metroCertificateIssuer: DefaultCompany
-  metroCertificateNotAfter: 809cd6127b49d901
+  metroCertificateNotAfter: 8027a4f55a69da01
   metroApplicationDescription: Template_3D
   wsaImages: {}
   metroTileShortName: MRTK KeyBoard Experiment 1
@@ -651,7 +651,7 @@ PlayerSettings:
       OfflineMapsManagement: False
       PhoneCall: False
       PhoneCallHistoryPublic: False
-      PicturesLibrary: False
+      PicturesLibrary: True
       PointOfService: False
       PrivateNetworkClientServer: False
       Proximity: False
@@ -664,7 +664,7 @@ PlayerSettings:
       UserAccountInformation: False
       UserDataTasks: False
       UserNotificationListener: False
-      VideosLibrary: False
+      VideosLibrary: True
       VoipCall: False
       WebCam: True
   metroTargetDeviceFamilies:

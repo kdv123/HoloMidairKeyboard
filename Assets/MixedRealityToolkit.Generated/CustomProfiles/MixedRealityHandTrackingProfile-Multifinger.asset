@@ -17,7 +17,7 @@ MonoBehaviour:
     type: 3}
   palmPrefab: {fileID: 6797406804172968804, guid: 750bdc3344567a447960aae3eda2b462,
     type: 3}
-  fingertipPrefab: {fileID: 7094064642998883381, guid: b37dde41a983d664c8a09a91313733e7,
+  fingertipPrefab: {fileID: 2158368304196998068, guid: 054bae232d6480e418127064aa7cbbc5,
     type: 3}
   handMeshPrefab: {fileID: 1887883006053652, guid: a86f479797fea8f4189f924b3b6ad979,
     type: 3}
