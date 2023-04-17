@@ -90,7 +90,9 @@ public class Key : MonoBehaviour
         c.a = 0;
         activeLight.material.color = c;
     }
-
+    /**
+     * Description: "Enables" the key, allowing it to be pressed
+     **/
     public void setEnabled()
     {
         Color c = disabledLight.material.color;
@@ -99,6 +101,9 @@ public class Key : MonoBehaviour
         isEnabled = true;
     }
 
+    /**
+     * Description: "Disables" the key, preventing it from being pressed
+     **/
     public void setDisabled()
     {
         Color c = disabledLight.material.color;
@@ -107,6 +112,9 @@ public class Key : MonoBehaviour
         isEnabled = false;
     }
 
+    /**
+     * Description: "Disables" the key, preventing if from being pressed, but maintains the active light
+     **/
     public void disableWithoutLight()
     {
         Color c = disabledLight.material.color;
@@ -115,6 +123,9 @@ public class Key : MonoBehaviour
         isEnabled = false;
     }
 
+    /**
+     * Description: Returns whether or not the key is enabled
+     **/
     public bool getEnabled()
     {
         return isEnabled;

@@ -10,18 +10,19 @@ using Windows.Storage;
 
 public class Logger : MonoBehaviour
 {
-    public string filepath = "Assets/Output";
-    public string gaze_filepath = "Assets/Output";
-    public string filename = "output.csv";
-    public string gaze_filename = "gaze-output.csv";
-    public string folder = "Output";
-    public EyeTracking eyetracker;
+    public string filepath = "Assets/Output";           // The filepath to log written information to
+    public string gaze_filepath = "Assets/Output";      // The filepath to log gaze position to
+    public string filename = "output.csv";              // The filename to log written information to
+    public string gaze_filename = "gaze-output.csv";    // The filename to log gaze position to
+    public string folder = "Output";                    // The folder to store the file in
+    public EyeTracking eyetracker;                      // A reference to the eyetracker
 
-    private Queue<string> q = new Queue<string>();
-    private Queue<string> gaze_q = new Queue<string>();
+    private Queue<string> q = new Queue<string>();      // Queue of written information to write
+    private Queue<string> gaze_q = new Queue<string>(); // Queue of gaze position data to write
 
     public async void Start()
     {
+        // Generates new filenames based on the time
         filename = DateTime.Now.ToString("yyyy-MM-dd.hh-mm-ss") + "." + filename;
         gaze_filename = DateTime.Now.ToString("yyyy-MM-dd.hh-mm-ss") + "." + gaze_filename;
         await startLog();
@@ -99,7 +100,7 @@ public class Logger : MonoBehaviour
         q.Enqueue(DateTime.Now.ToString("hh.mm.ss.FFF") + ",SENTENCE_STATS,\"" + typedSentence + "\"," + WPM + "," + error);
     }
 
-    // Writes all gathered data
+    // Writes all gathered data (Runs when the 'Enter' key is pressed)
     public void write_all_data()
     {
         string path = Path.Combine(filepath, filename);

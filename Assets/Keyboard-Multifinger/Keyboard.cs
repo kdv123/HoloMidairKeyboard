@@ -15,27 +15,26 @@ using System;
 public class Keyboard : MonoBehaviour
 {
 
-    public TextMeshPro typeText;
-    public EyeTracking et;
-    public string typeCase = "";
-    public string typeStart = "Please type the following phrase:\n\n";
-    private string[] practiceSentences = new string[2];
-    private string[] testSentences = new string[8];
-    private double[] wpm = new double[10];
-    private double[] errorRate = new double[10];
-    private int sentence = 0;
-    public string sentencepath = "Assets/Keyboard-Multifinger/sentences.txt";
-    private Random r = new Random();
+    public TextMeshPro typeText; // Reference to the instructions text
+    public EyeTracking et; // Reference to the eyetracker
+    public string typeCase = ""; // Instructions text for each case
+    public string typeStart = "Please type the following phrase:\n\n"; // Text to display before the sentence
+    private string[] practiceSentences = new string[2]; // List of practice sentences
+    private string[] testSentences = new string[8]; // List of test sentences
+    private double[] wpm = new double[10]; // An array to store the WPM for each sentence
+    private double[] errorRate = new double[10]; // An array to store the Error Rate % for each sentence
+    private int sentence = 0; // Which sentence the user is currently on
+    private Random r = new Random(); // Random to shuffle/choose random sentences
 
-    public UnityEvent caseclosed; 
+    public UnityEvent caseclosed; // Runs when a case is completed
 
     public Key[] keys = new Key[48]; // Array to store all Keys.
-    public Key backspace;
-    public Key capslock;
-    public Key leftshift;
-    public Key rightshift;
-    public Key spacebar;
-    public Key enter;
+    public Key backspace; // Reference to the backspace key
+    public Key capslock; // Reference to the capslock key
+    public Key leftshift; // Reference to the left shift key
+    public Key rightshift; // Reference to the right shift key
+    public Key spacebar; // Reference to the spacebar
+    public Key enter; // Reference to the enter key
     public float defaultThreshold = 0.5f; // The default threshold of all keys in the "keys" array
     public float spacebarThreshold = 0.9f; // The default threshold of the spacebar
     public float cooldownTime = 0.5f; // Time in seconds between registered key presses
@@ -51,10 +50,11 @@ public class Keyboard : MonoBehaviour
     bool cursorOn = false; // Whether or not the cursor is on
     bool cooldown = false; // Whether or not the cooldown is active
     bool over = false; // Whether or not to override the shift keys
-    bool displayStats = false;
-    DateTime start = DateTime.MinValue;
-    DateTime end = DateTime.MinValue;
+    bool displayStats = false; // Whether to display stats or the next sentence
+    DateTime start = DateTime.MinValue; // DateTime to store when the user started typing (for WPM calculation)
+    DateTime end = DateTime.MinValue; // DateTime to store when the user stopped typing (for WPM calculation)
 
+    // List of sentence to choose from
     private List<string> sentences = new List<string>
     {
         "Is she done yet?",
@@ -213,7 +213,9 @@ public class Keyboard : MonoBehaviour
         spacebar.GetComponent<Key_Multifinger>().setThreshold(spacebarThreshold);
     }
 
-
+    /**
+     * Starts a new sequence of sentences
+     **/
     public void startSentences()
     {
         getSentences();
@@ -449,12 +451,18 @@ public class Keyboard : MonoBehaviour
         displayText.text = cursorOn ? typed + "_" : typed;
     }
 
+    /**
+     * Sets the cooldown variable to false after a time delay
+     **/
     private IEnumerator runCooldown()
     {
         yield return new WaitForSeconds(cooldownTime);
         cooldown = false;
     }
 
+    /**
+     * Selects new random sentences
+     **/
     private void getSentences()
     {
         sentence = 0;
@@ -486,21 +494,27 @@ public class Keyboard : MonoBehaviour
         }
     }
 
+    /**
+     * Displays the next sentence and updates the related variables
+     **/
     private void nextSentence()
     {
         start = DateTime.MinValue;
+        // If the next sentence is a practice sentence
         if (sentence < practiceSentences.Length)
         {
             typeText.text = "Sentence " + (sentence + 1)  + "/" + (practiceSentences.Length + testSentences.Length) + "(PRACTICE)\n\n<color=#888888>" + typeCase + typeStart + "</color>" + practiceSentences[sentence];
             log.write_sentence(practiceSentences[sentence], "PRACTICE", sentence + 1);
             sentence++;
         }
+        // If the next sentence is a test sentence
         else if (sentence < (testSentences.Length + practiceSentences.Length))
         {
             typeText.text = "Sentence " + (sentence + 1) + "/" + (practiceSentences.Length + testSentences.Length) + "(TEST)\n\n<color=#888888>" + typeCase + typeStart + "</color>" + testSentences[sentence - practiceSentences.Length];
             log.write_sentence(testSentences[sentence - practiceSentences.Length], "TEST", sentence + 1);
             sentence++;
         }
+        // If there are no more sentences for the current case
         else if (sentence == testSentences.Length + practiceSentences.Length)
         {
             caseclosed.Invoke();
@@ -508,6 +522,9 @@ public class Keyboard : MonoBehaviour
 
     }
 
+    /**
+     * Displays the WPM and Error Rate of the sentence the user just entered
+     **/
     private void showStats()
     {
         double WPM = calculateWPM();
@@ -532,12 +549,18 @@ public class Keyboard : MonoBehaviour
         }
     }
 
+    /**
+     * Returns the WPM of the sentence the user just typed
+     **/
     private double calculateWPM()
     {
         double length = prevtyped.Length / 5.0;
         return length / ((end - start).TotalSeconds / 60.0);
     }
 
+    /**
+     * Returns the Error Rate % of the sentence the user just typed
+     **/
     private double calculateErrors()
     {
         string s = "";
@@ -567,11 +590,17 @@ public class Keyboard : MonoBehaviour
         return (distance[prevtyped.Length, s.Length] / (double) prevtyped.Length) * 100.0;
     }
 
+    /**
+     * Returns the minimum of three integers
+     **/
     private int minimum(int a, int b, int c)
     {
         return Math.Min(Math.Min(a, b), c);
     }
 
+    /**
+     * Returns what the user just typed
+     **/
     public string getTypedText()
     {
         return prevtyped;
@@ -582,6 +611,9 @@ public class Keyboard : MonoBehaviour
         typeCase = s;
     }
 
+    /**
+     * Calculates and returns the average WPM of the sentences in the current case
+     **/
     public double getAverageWPM()
     {
         double average = 0;
@@ -593,6 +625,9 @@ public class Keyboard : MonoBehaviour
         return average / wpm.Length;
     }
 
+    /**
+     * Calculates and returns the average Error Rate % of the sentences in the current case
+     **/
     public double getAverageErrorRate()
     {
         double average = 0;

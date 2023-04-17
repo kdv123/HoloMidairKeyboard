@@ -58,6 +58,9 @@ public class HandTracking : MonoBehaviour
         left_pinky.name = "LEFT_PINKY";
     }
 
+    /**
+     * Sets the hand tracking to track only two fingers
+     **/
     public void trackTwoFingers()
     {
         // Destroy finger colliders for non-index fingers
@@ -74,6 +77,9 @@ public class HandTracking : MonoBehaviour
         tenfingers = false;
     }
 
+    /**
+     * Sets the hand tracking to track all ten fingers
+     **/
     public void trackTenFingers()
     {
         // Instantiate finger collider prefabs

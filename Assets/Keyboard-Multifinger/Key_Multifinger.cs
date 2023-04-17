@@ -31,6 +31,7 @@ public class Key_Multifinger : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Checks if the key has been pressed
         if (!isPressed && getValue() + threshold >= 1) Pressed();
         if (isPressed && getValue() - threshold <= 0) Released();
         if (!interactable && getValue() + upThreshold >= 0) Interactable();
@@ -54,12 +55,18 @@ public class Key_Multifinger : MonoBehaviour
         return Mathf.Clamp(value, -1, 1);
     }
 
+    /**
+     * Activates collision for the key
+     **/
     private void Interactable()
     {
         gameObject.layer = 10; // Layer 10 is the "Keys" layer
         interactable = true;
     }
 
+    /**
+     * Deactivates collision for the key
+     **/
     private void NonInteractable()
     {
         gameObject.layer = 11; // Layer 11 is the "NoCollision" layer
@@ -92,11 +99,17 @@ public class Key_Multifinger : MonoBehaviour
         threshold = t;
     }
 
+    /**
+     * Tracks the finger that last touched the key
+     **/
     private void OnCollisionEnter(Collision collision)
     {
         finger = collision.gameObject.name;
     }
 
+    /**
+     * Returns the finger that last touched the key
+     **/
     public string getFinger()
     {
         return finger;
