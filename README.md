@@ -1,8 +1,17 @@
 # HoloLens Multi-Finger Keyboard
-For prototyping this with the HoloLens v2
+Contains the full interface used in The Impact of Surface Co-location and Eye-tracking on Mixed Reality Typing paper during Experiment 2.
 
-This Project contains the full HoloLens experiment.
+The keyboard is stationary and spawns relative to the headset location when the program is launched. Initially, the user will be prompted to enter a participant number. This determines the order of the four conditions. The four conditions are as follows:
+Index - Users can type only with their index fingers.
+IndexEye - Users can type only with their index fingers. They must be looking near a key in order to press it.
+Ten - Users can type with all ten fingers.
+TenEye - Users can type with all ten fingers. They must be looking near a key in order to press it.
 
+Each condition consists of two practice sentences and eight test sentences. The users WPM and Error % are displayed after they complete each sentence. A 30 second break is enforced between each condition.
+
+Log files are created automatically, and stored on the HoloLens in the Pictures folder. A new folder will be created named "Output" that will contain the log files.
+
+### Certificate Renewal
 To renew certificate:
   1. Delete certificate from folder hierarchy
   2. Run new build in Unity
