@@ -1,0 +1,4 @@
+repository "Keyboard/HoloKeyboard@2475783189953@cloud"
+  path "/"
+    br "/main"
+    co "/main"
