@@ -50,11 +50,8 @@ public class PredictionButton : MonoBehaviour
     public void Submit()
     {
         if (!PredictionMenuCreator.Instance.GetAllowPredictionHits()) return;
+        if (!KeyboardController.Instance.TryAcceptPrediction(_buttonPrediction)) return;
         PredictionMenuCreator.Instance.TogglePredictionHits(false);
-        KeyboardController.Instance.VALUE = _buttonPrediction.Contents + " ";
-        KeyboardController.Instance.TEST();
-        //KeyboardController.Instance.ReplaceText(_textMeshPro.text, _textMeshPro.text.Length);
-        LogManager.Instance.CreatePredictionAcceptedLog(_buttonPrediction);
         PredictionMenuCreator.Instance.DestroyButtons();
     }
 }

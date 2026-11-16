@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <Compile Include="../../HoloKeyboard/Assets/_Common/Core/New Keyboard/Scripts/Structs.cs" Link="Structs.cs" />
+    <Compile Include="../../HoloKeyboard/Assets/_Common/Core/New Keyboard/Scripts/NoiselessPredictionSession.cs" Link="NoiselessPredictionSession.cs" />
+    <Compile Include="../../HoloKeyboard/Assets/_Common/Core/New Keyboard/Scripts/WebsocketClient.cs" Link="WebsocketClient.cs" />
+  </ItemGroup>
+</Project>

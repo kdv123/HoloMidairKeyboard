@@ -11,8 +11,13 @@ using UnityEngine;
 public class LogServerResponse : LogEntryBase
 {
     public PredictionSet Response;
-    public LogServerResponse(PredictionSet predictions, TimeSpan entryTime) : base(entryTime)
+    public double? ElapsedMs;
+    public PredictionResponse ServerResponse;
+    public LogServerResponse(PredictionSet predictions, TimeSpan entryTime,
+        double? elapsedMs = null, PredictionResponse serverResponse = null) : base(entryTime)
     {
         Response = predictions;
+        ElapsedMs = elapsedMs;
+        ServerResponse = serverResponse;
     }
 }

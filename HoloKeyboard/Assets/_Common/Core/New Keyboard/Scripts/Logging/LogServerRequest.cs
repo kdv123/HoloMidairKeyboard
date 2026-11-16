@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using CSWebSockets.Structs;
 
 /// <summary>
 /// Log entry for when a request is sent to the server for a prediction
@@ -10,8 +11,10 @@ using UnityEngine;
 public class LogServerRequest : LogEntryBase
 {
     public string Message;
-    public LogServerRequest(string message, TimeSpan entry) : base(entry)
+    public PredictionRequest Request;
+    public LogServerRequest(PredictionRequest request, TimeSpan entry) : base(entry)
     {
-        Message = message;
+        Message = request.left_context;
+        Request = request;
     }
 }

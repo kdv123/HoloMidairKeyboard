@@ -1,0 +1,6 @@
+<linker>
+  <!-- These wire/log types are also accessed through Newtonsoft.Json reflection. -->
+  <assembly fullname="Assembly-CSharp">
+    <type fullname="CSWebSockets.Structs.*" preserve="all" />
+  </assembly>
+</linker>

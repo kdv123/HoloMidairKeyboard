@@ -16093,7 +16093,6 @@ MonoBehaviour:
   _keyHeight: 0.05
   _keyRotation: {x: -70, y: 0, z: 0}
   _keySpacing: 0.02
-  _currentWordChunk: 
 --- !u!1 &755960445
 GameObject:
   m_ObjectHideFlags: 0
@@ -41006,6 +41005,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 91ddf7c1ab187b84ea6f0322a98be782, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _serverUrl: wss://cheetah.textslinger.org:8443/api/v1/ws
+  _model: ngram
+  _predictionCount: 3
+  _deadlineMs: 10000
   TestInput: intere
 --- !u!1 &1956196632
 GameObject:

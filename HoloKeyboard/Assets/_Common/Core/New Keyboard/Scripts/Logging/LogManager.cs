@@ -55,16 +55,17 @@ public class LogManager : MonoBehaviour
         LogPredictionPhaseCompleted entry = new LogPredictionPhaseCompleted(target, actual, numberCompleted, _stopwatch.Elapsed);
         Write(entry);
     }
-    public void CreateServerResponseLog(PredictionSet predictions)
+    public void CreateServerResponseLog(PredictionSet predictions, double? elapsedMs = null,
+        PredictionResponse serverResponse = null)
     {
         if (_stopwatch == null) return;
-        LogServerResponse entry = new LogServerResponse(predictions, _stopwatch.Elapsed);
+        LogServerResponse entry = new LogServerResponse(predictions, _stopwatch.Elapsed, elapsedMs, serverResponse);
         Write(entry);
     }
-    public void CreateServerRequestLog(string message)
+    public void CreateServerRequestLog(PredictionRequest request)
     {
         if (_stopwatch == null) return;
-        LogServerRequest entry = new LogServerRequest(message, _stopwatch.Elapsed);
+        LogServerRequest entry = new LogServerRequest(request, _stopwatch.Elapsed);
         Write(entry);
     }
     public void CreateKeyEntryLog(string key)

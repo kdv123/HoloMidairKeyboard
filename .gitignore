@@ -33,6 +33,9 @@
 ExportedObj/
 .consulo/
 *.csproj
+!Tests/PredictionClient/*.csproj
+/Tests/PredictionClient/bin/
+/Tests/PredictionClient/obj/
 *.unityproj
 *.sln
 *.suo

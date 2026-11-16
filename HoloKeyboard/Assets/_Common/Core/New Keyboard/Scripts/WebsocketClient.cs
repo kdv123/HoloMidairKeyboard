@@ -1,156 +1,188 @@
-﻿using System;
+using System;
+using System.Collections.Concurrent;
+using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using CSWebSockets.Structs;
-using System.Linq;
-using UnityEngine;
-namespace CSWebSockets{
-    public class WebSocketClient
+
+namespace CSWebSockets
+{
+    // Transport only. Awaiting callers resume on their Unity synchronization
+    // context; the receive loop never touches scene objects or the Unity logger.
+    public sealed class WebSocketClient : IDisposable
     {
-
-        public Action OnDisconnect;
-        public Action<ServerPrediction> OnRecieveResponse;
-
-        [SerializeField] private bool _debugLogging = false;
-        private ClientWebSocket _webSocket;
-        private CancellationTokenSource _cancellationTokenSource;
+        private const int MaxResponseBytes = 4 * 1024 * 1024;
+        private static readonly Encoding Utf8 = new UTF8Encoding(false, true);
+        private readonly ClientWebSocket _socket = new ClientWebSocket();
         private readonly Uri _uri;
-        private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
-        private int _nextID = -1;
-        public int GetNextID()
-        {
-            _nextID += 1;
-            return _nextID;
-        }
-        /// <summary>
-        /// The current connection state of the websocket, or none if the socket doesn't exist.
-        /// </summary>
-        public WebSocketState ClientState => _webSocket == null ? WebSocketState.None : _webSocket.State;
+        private readonly CancellationTokenSource _stop = new CancellationTokenSource();
+        private readonly CancellationToken _stopToken;
+        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<PredictionResponse>> _pending =
+            new ConcurrentDictionary<string, TaskCompletionSource<PredictionResponse>>();
+        private readonly TaskCompletionSource<bool> _ready =
+            new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        private Task _receiveTask;
+        private volatile bool _isReady;
+        private int _disposed;
 
-        public WebSocketClient(string uri)
+        public WebSocketState ClientState => _socket.State;
+        public bool IsReady => _isReady && _socket.State == WebSocketState.Open;
+        public string LastError { get; private set; }
+
+        public WebSocketClient(string uri, string bearerToken = null)
         {
             _uri = new Uri(uri);
+            if (_uri.Scheme != "ws" && _uri.Scheme != "wss")
+                throw new ArgumentException("Use a ws:// or wss:// prediction endpoint.");
+            _stopToken = _stop.Token;
+            _socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
+            _socket.Options.AddSubProtocol("textslinger.v1");
+            if (!string.IsNullOrEmpty(bearerToken))
+                _socket.Options.SetRequestHeader("Authorization", "Bearer " + bearerToken);
         }
-        ~WebSocketClient()
-        {
-            if(OnRecieveResponse != null)
-            {
-                OnRecieveResponse = null;
-            }
-        }
+
         public async Task ConnectAsync()
         {
-            _webSocket = new ClientWebSocket();
-            _cancellationTokenSource = new CancellationTokenSource();
-
-            // Configure WebSocket options
-            _webSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
-            // _webSocket.Options.SetRequestHeader("Authorization", $"Bearer {GetAuthToken()}");
-            _webSocket.Options.AddSubProtocol("chat");
-
-            try
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stopToken))
             {
-                await _webSocket.ConnectAsync(_uri, _cancellationTokenSource.Token);
-                if(_debugLogging) Debug.Log($"Connected to {_uri}");
-
-                // Start receiving messages
-                _ = Task.Run(ReceiveLoop);
-
-                // Send initial message
-                // await SendMessageAsync(new { type = "subscribe", channel = "updates" });
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"Connection failed: {ex.Message}");
-                throw;
-            }
-        }
-
-        private async Task ReceiveLoop(){
-            var buffer = new ArraySegment<byte>(new byte[4096]);
-
-            while (_webSocket.State == WebSocketState.Open){
-                try{
-                    var result = await _webSocket.ReceiveAsync(
-                        buffer,
-                        _cancellationTokenSource.Token
-                    );
-                    if (result.MessageType == WebSocketMessageType.Binary){
-                        await HandleBinaryMessage(buffer.Array.Take(result.Count).ToArray());
-                    }else{
-                        throw new Exception("Should have been binary");
+                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                using (timeout.Token.Register(() => _ready.TrySetCanceled()))
+                {
+                    try
+                    {
+                        await _socket.ConnectAsync(_uri, timeout.Token).ConfigureAwait(false);
+                        _receiveTask = ReceiveLoop();
+                        await _ready.Task.ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        Dispose();
+                        throw;
                     }
                 }
-                catch (WebSocketException ex)
+            }
+        }
+
+        public async Task<PredictionResponse> PredictAsync(PredictionRequest request)
+        {
+            if (!IsReady) throw new InvalidOperationException("The prediction connection is not ready.");
+            var completion = new TaskCompletionSource<PredictionResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!_pending.TryAdd(request.request_id, completion))
+                throw new InvalidOperationException("A request with this ID is already pending.");
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(_stopToken))
+            {
+                // Server deadlines exclude transit; allow another two seconds for the reply.
+                timeout.CancelAfter(TimeSpan.FromMilliseconds((long)request.deadline_ms + 2000));
+                using (timeout.Token.Register(() => completion.TrySetCanceled()))
                 {
-                    Debug.LogError($"WebSocket error: {ex.Message}");
-                    await HandleError(ex);
-                    break;
+                    try
+                    {
+                        byte[] bytes = Utf8.GetBytes(JsonConvert.SerializeObject(request));
+                        await _sendLock.WaitAsync(timeout.Token).ConfigureAwait(false);
+                        try
+                        {
+                            await _socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text,
+                                true, timeout.Token).ConfigureAwait(false);
+                        }
+                        finally { _sendLock.Release(); }
+                        return await completion.Task.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!_stopToken.IsCancellationRequested)
+                    {
+                        throw new TimeoutException("Timed out waiting for a prediction response.");
+                    }
+                    finally { _pending.TryRemove(request.request_id, out _); }
                 }
             }
         }
 
-        public async Task SendBinaryAsync(byte[] data){
-            if (_webSocket.State != WebSocketState.Open){
-                throw new InvalidOperationException("WebSocket is not connected");
+        private async Task ReceiveLoop()
+        {
+            Exception failure = new IOException("The prediction server closed the connection.");
+            try
+            {
+                var buffer = new byte[4096];
+                using (var message = new MemoryStream())
+                {
+                    while (!_stopToken.IsCancellationRequested)
+                    {
+                        var received = await _socket.ReceiveAsync(new ArraySegment<byte>(buffer), _stopToken)
+                            .ConfigureAwait(false);
+                        if (received.MessageType == WebSocketMessageType.Close) break;
+                        if (received.MessageType != WebSocketMessageType.Text)
+                            throw new InvalidDataException("The server must send JSON text frames.");
+                        if (message.Length + received.Count > MaxResponseBytes)
+                            throw new InvalidDataException("Prediction response exceeds the receive limit.");
+                        message.Write(buffer, 0, received.Count);
+                        if (!received.EndOfMessage) continue;
+                        string json = Utf8.GetString(message.ToArray());
+                        message.SetLength(0);
+                        var response = JsonConvert.DeserializeObject<PredictionResponse>(json);
+                        if (response == null || response.version != 1)
+                            throw new InvalidDataException("Unsupported prediction protocol version.");
+                        if (response.type == "ready")
+                        {
+                            _isReady = true;
+                            _ready.TrySetResult(true);
+                        }
+                        else if (response.type == "pong") { }
+                        else if (response.request_id != null && _pending.TryGetValue(response.request_id, out var pending))
+                        {
+                            pending.TrySetResult(response);
+                        }
+                        else if (response.status == "invalid_request" && response.request_id == null)
+                        {
+                            throw new InvalidDataException("The server rejected a message: " + response.error);
+                        }
+                    }
+                }
             }
-
-            await _sendSemaphore.WaitAsync();
-            try{
-                await _webSocket.SendAsync(
-                    new ArraySegment<byte>(data),
-                    WebSocketMessageType.Binary,
-                    true,
-                    _cancellationTokenSource.Token
-                );
-            }
-            finally{
-                _sendSemaphore.Release();
+            catch (Exception error) { failure = error; }
+            finally
+            {
+                _isReady = false;
+                LastError = failure.Message;
+                _ready.TrySetException(failure);
+                foreach (var pending in _pending.Values) pending.TrySetException(failure);
+                if (Volatile.Read(ref _disposed) == 0) _socket.Abort();
             }
         }
 
         public async Task DisconnectAsync()
         {
-            if (_webSocket.State == WebSocketState.Open){
-                await _webSocket.CloseAsync(
-                    WebSocketCloseStatus.NormalClosure,
-                    "Client disconnecting",
-                    CancellationToken.None
-                );
+            try
+            {
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2)))
+                {
+                    await _sendLock.WaitAsync(timeout.Token).ConfigureAwait(false);
+                    try
+                    {
+                        if (_socket.State == WebSocketState.Open || _socket.State == WebSocketState.CloseReceived)
+                            await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure,
+                                "Client disconnecting", timeout.Token).ConfigureAwait(false);
+                    }
+                    finally { _sendLock.Release(); }
+                }
             }
-
-            _cancellationTokenSource?.Cancel();
-            _webSocket?.Dispose();
+            catch (Exception) { /* Closing must also work after a network failure. */ }
+            finally { Dispose(); }
+            if (_receiveTask != null) await _receiveTask.ConfigureAwait(false);
         }
 
-        private async Task HandleBinaryMessage(byte[] data){
-            ServerPrediction predictions = JsonConvert.DeserializeObject<ServerPrediction>(Encoding.ASCII.GetString(data));
-            if (_debugLogging) Debug.Log($"Received binary data: {data.Length} bytes. Data saved to struct. Raw Data:\n{Encoding.ASCII.GetString(data)}\nStruct Content:\nID: {predictions.ID}\nPredictions: ");
-            foreach (string predict in predictions.predictions){
-                if (_debugLogging) Debug.Log($"{predict}, ");
-            }
-            OnRecieveResponse?.Invoke(predictions);
-            // Process binary data
-
-        }
-
-        private async Task HandleClose(WebSocketReceiveResult result){
-            Debug.Log($"Connection closed: {result.CloseStatus} - {result.CloseStatusDescription}");
-        }
-
-        private async Task HandleError(Exception ex)
+        public void Dispose()
         {
-            Debug.LogError($"Error: {ex.Message}");
-            // Implement reconnection logic
-        }
-
-        private string GetAuthToken()
-        {
-            // Retrieve authentication token
-            return "your-auth-token";
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _isReady = false;
+            _stop.Cancel();
+            _ready.TrySetCanceled();
+            foreach (var pending in _pending.Values) pending.TrySetCanceled();
+            _socket.Abort();
+            _socket.Dispose();
+            _stop.Dispose();
         }
     }
 }

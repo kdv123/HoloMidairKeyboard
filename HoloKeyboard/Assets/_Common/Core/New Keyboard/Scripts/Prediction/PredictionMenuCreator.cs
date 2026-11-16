@@ -52,10 +52,6 @@ public class PredictionMenuCreator : MonoBehaviour
     /// </summary>
     private PredictionSet? _queuedPredictionSet = null;
     /// <summary>
-    /// The current word chunk the player is typing
-    /// </summary>
-    [SerializeField] private string _currentWordChunk = "";
-    /// <summary>
     /// If the next prediction hit can actually be counted or not
     /// </summary>
     private bool _allowPredictionHits = true;
@@ -76,12 +72,15 @@ public class PredictionMenuCreator : MonoBehaviour
     private void OnEnable()
     {
         _client.OnPredictionsUpdated += RequestPrediction;
-        _client.OnOutboundServerRequest += StartOutboundRequest;
+        _client.OnRequestStateChanged += SetLoading;
+        _client.OnPredictionsInvalidated += ClearPredictions;
     }
     private void OnDisable()
     {
         _client.OnPredictionsUpdated -= RequestPrediction;
-        _client.OnOutboundServerRequest -= StartOutboundRequest;
+        _client.OnRequestStateChanged -= SetLoading;
+        _client.OnPredictionsInvalidated -= ClearPredictions;
+        ClearPredictions();
     }
     private void Update()
     {
@@ -93,27 +92,29 @@ public class PredictionMenuCreator : MonoBehaviour
         {
             _loadingObject.transform.Rotate(Vector3.back * Time.deltaTime * 360);
         }
-        FilterCurrentInputChunk();
     }
     #endregion
 
     /// <summary>
     /// Event response to queue an update to the prediction buttons
     /// </summary>
-    /// <param name="list"></param>
-    public void RequestPrediction(List<PredictionSet> list)
+    /// <param name="set">Predictions for one current text snapshot.</param>
+    public void RequestPrediction(PredictionSet set)
     {
-        PredictionSet set = list[list.Count - 1];
-
-
         _queuedPredictionSet = set;
     }
     /// <summary>
     /// Response to a prediction request being sent to the server from the client
     /// </summary>
-    private void StartOutboundRequest()
+    private void SetLoading(bool loading)
     {
-        _loadingObject.SetActive(true);
+        if (_loadingObject != null) _loadingObject.SetActive(loading);
+    }
+    private void ClearPredictions()
+    {
+        _queuedPredictionSet = null;
+        SetLoading(false);
+        DestroyButtons();
     }
     /// <summary>
     /// Creates the prediction slots for the keyboard. This should be called at the start, or when the number of predictions is updated.
@@ -121,19 +122,15 @@ public class PredictionMenuCreator : MonoBehaviour
     private void CreatePredictionSlots(PredictionSet set)
     {
         _loadingObject.SetActive(false);
-        string[] text = new string[3];
-        text[0] = _currentWordChunk + set.predictions[0].Contents;
-        text[1] = _currentWordChunk + set.predictions[1].Contents;
-        text[2] = _currentWordChunk + set.predictions[2].Contents;
-        //Remove any buttons currently active under the parent.
-
+        _queuedPredictionSet = null;
         DestroyButtons();
+        int count = Mathf.Min(_predictionNumber, set.predictions?.Length ?? 0);
+        if (count <= 0 || !_client.IsCurrentPrediction(set.predictions[0])) return;
         
         float keyboardLength = Vector3.Distance(new Vector3(_keyboardStart.localPosition.x, 0, 0), new Vector3(_keyboardEnd.localPosition.x, 0, 0));
         //Key length is the keyboard length divided by the number of keys, minus the gap between each key
-        float keyLength = (keyboardLength / _predictionNumber) - (_keySpacing);
-        keyLength += (_keySpacing) * (1 / (float)_predictionNumber);
-        for(int i = 0; i < _predictionNumber; i++)
+        float keyLength = (keyboardLength - _keySpacing * (count - 1)) / count;
+        for(int i = 0; i < count; i++)
         {
             ResizeableButton button = Instantiate(_predictionButtonTemplate, Vector3.zero, Quaternion.identity, _predictionButtonParent).GetComponent<ResizeableButton>();
             button.transform.localRotation = Quaternion.Euler(_keyRotation.x, _keyRotation.y, _keyRotation.z);
@@ -144,26 +141,18 @@ public class PredictionMenuCreator : MonoBehaviour
             pButton.ResizeText(Vector3.one);
             //pButton.ResizeText(new Vector3((button.transform.localScale.x / _textScale), button.transform.localScale.y, button.transform.localScale.z));
             //pButton.ResizeText(new Vector3(1, 2.5f, 1));
-            pButton.SetText(text[i]);
+            pButton.SetText(set.predictions[i].Contents);
             pButton.SetPrediction(set.predictions[i]);
         }
-        _queuedPredictionSet = null;
     }
     public void DestroyButtons()
     {
-        Transform[] children = _predictionButtonParent.GetComponentsInChildren<Transform>();
-        for (int i = 0; i < children.Length; i++)
+        if (_predictionButtonParent == null) return;
+        for (int i = _predictionButtonParent.childCount - 1; i >= 0; i--)
         {
-            if (children[i] != _predictionButtonParent.transform) Destroy(children[i].gameObject);
+            GameObject child = _predictionButtonParent.GetChild(i).gameObject;
+            child.SetActive(false);
+            Destroy(child);
         }
-    }
-    /// <summary>
-    /// Filters the current input to get the section used for prediction
-    /// </summary>
-    private void FilterCurrentInputChunk()
-    {
-        string input = _keyboardController.CurrentInput;
-        string[] words = input.Split(' ');
-        _currentWordChunk = words[words.Length - 1];
     }
 }

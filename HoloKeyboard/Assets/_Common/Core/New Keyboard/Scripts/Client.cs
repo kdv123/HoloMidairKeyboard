@@ -1,123 +1,176 @@
 using CSWebSockets;
 using CSWebSockets.Structs;
-using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Sockets;
-using System.Net.WebSockets;
-using System.Text;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
+
 public class Client : MonoBehaviour
 {
     public static Client Instance { get; private set; }
-    private void Awake()
-    {
-        Instance = this;
-    }
-    public Action<List<PredictionSet>> OnPredictionsUpdated;
-    public Action OnOutboundServerRequest;
-    private WebSocketClient _socket = null;
+    public Action<PredictionSet> OnPredictionsUpdated;
+    public Action OnPredictionsInvalidated;
+    public Action<bool> OnRequestStateChanged;
 
-    //readonly string _address = "cheetah.sabu.mtu.edu:8765";
-    //readonly string _address = "6.tcp.ngrok.io:10127";
-    readonly string _address = "141.219.186.170:8765";
-    //141.219.186.255
-    private void Start()
-    {
-        Task<bool> connectTask = TryConnect();
-    }
-    [ContextMenu("Send data")]
-    public void Test()
-    {
-        _ = CreateMessage(TestInput);
-    }
+    [Header("TextSlinger server")]
+    [SerializeField] private string _serverUrl = "wss://cheetah.textslinger.org:8443/api/v1/ws";
+    [SerializeField] private string _model = "ngram";
+    [SerializeField, Min(1)] private int _predictionCount = 3;
+    [SerializeField, Min(1)] private int _deadlineMs = 10000;
+    // Supply authentication at runtime if the deployment enables it; do not serialize secrets.
+    public string BearerToken { private get; set; }
     public string TestInput;
 
-    [SerializeField] private List<PredictionSet> _predictionList = new List<PredictionSet>();
+    private readonly NoiselessPredictionSession _session = new NoiselessPredictionSession();
+    private WebSocketClient _socket;
+    private bool _connecting;
+    private bool _connected;
+    private bool _allowReconnect = true;
+    private bool _destroyed;
+    private bool _wantsPredictions;
+    private bool _pending;
+    private bool _hasCurrentResult;
+    private float _retryAt;
+    private float _retryDelay = 2f;
 
+    private void Awake() { Instance = this; }
+    private void Start() { _ = TryConnect(); }
 
+    private void Update()
+    {
+        if (_connected && (_socket == null || !_socket.IsReady))
+        {
+            _connected = false;
+            InvalidatePredictions();
+            Debug.LogWarning("Prediction connection closed: " + _socket?.LastError);
+            _retryAt = Time.unscaledTime + _retryDelay;
+        }
+        if (_allowReconnect && !_connecting && !_connected && Time.unscaledTime >= _retryAt)
+            _ = TryConnect();
+    }
 
+    [ContextMenu("Send data")]
+    public void Test() { _ = CreateMessage(TestInput); }
 
     public async Task<bool> TryConnect()
     {
-        Debug.Log("Attempting connection...");
-        _socket = new WebSocketClient("ws://" + _address);
+        if (_destroyed || _connecting) return false;
+        if (_socket != null && _socket.IsReady) return true;
+        _allowReconnect = true;
+        _connecting = true;
+        WebSocketClient socket = null;
         try
         {
-            await _socket.ConnectAsync();
+            _socket?.Dispose();
+            InvalidatePredictions();
+            socket = new WebSocketClient(_serverUrl, BearerToken);
+            _socket = socket;
+            await socket.ConnectAsync();
+            if (_destroyed || _socket != socket) return false;
+            _connected = true;
+            _retryDelay = 2f;
+            Debug.Log("Connected to TextSlinger: " + _serverUrl);
+            // Replay only the latest text, retaining this session's revision history.
+            if (_wantsPredictions) _ = CreateMessage(_session.Text);
+            return true;
         }
-        catch (WebSocketException)
+        catch (Exception error)
         {
-            Debug.LogError($"Unable to connect to server {_address}");
+            socket?.Dispose();
+            if (!_destroyed && (socket == null || _socket == socket))
+            {
+                _connected = false;
+                Debug.LogWarning("Unable to connect to TextSlinger: " + error.Message);
+                _retryAt = Time.unscaledTime + _retryDelay;
+                _retryDelay = Mathf.Min(30f, _retryDelay * 2f);
+            }
             return false;
         }
-        _socket.OnRecieveResponse += RecieveMessageFromServer;
-        return true;
+        finally { _connecting = false; }
     }
+
     public async Task Disconnect()
     {
-        if (_socket == null) Debug.LogWarning("Cannot disconnect as the socket is null");
-        await _socket.DisconnectAsync();
-        Debug.Log("Disconnected");
+        _allowReconnect = false;
+        _connected = false;
+        var socket = _socket;
+        _socket = null;
+        InvalidatePredictions();
+        if (socket != null) await socket.DisconnectAsync();
     }
-    public async Task<bool> CreateMessage(string msg)
-    {
-        //Log a warning and return if the socket isn't open for sending
-        if (_socket == null || _socket.ClientState != WebSocketState.Open)
-        {
-            Debug.LogWarning("Cannot send message; socket is null");
-        }
-        // Put into struct
-        Message data;
-        data.ID = _socket.GetNextID();
-        data.message = msg;
-        Debug.Log($"Trying to send message |{data.message}| with ID {data.ID}");
-        // Convert to string with SerializeObject, then to bytes
-        await _socket.SendBinaryAsync(Encoding.ASCII.GetBytes(JsonConvert.SerializeObject(data)));
-        OnOutboundServerRequest?.Invoke();
-        LogManager.Instance.CreateServerRequestLog(msg);
-        return true;
 
-    }
-    private void RecieveMessageFromServer(ServerPrediction p)
+    // Called immediately for every text mutation, even before requests are enabled.
+    public void UpdateText(string text)
     {
-        //Debug.Log(JsonConvert.SerializeObject(p));
-        
-        Debug.Log($"Recieved message - ID {p.ID}, predictions:");
-        //First need to split each prediction into its own struct
-        PredictionSet set = new PredictionSet
+        if (_session.SetText(text)) InvalidatePredictions();
+    }
+
+    public bool IsCurrentPrediction(Prediction prediction)
+    {
+        return _connected && _socket != null && _socket.IsReady && _hasCurrentResult &&
+            _session.IsCurrent(prediction);
+    }
+
+    public async Task<bool> CreateMessage(string text)
+    {
+        if (_destroyed) return false;
+        UpdateText(text);
+        _wantsPredictions = true;
+        if (_pending || _hasCurrentResult) return true;
+        var socket = _socket;
+        if (socket == null || !socket.IsReady) return false;
+        PredictionRequest request = null;
+        try
         {
-            ID = p.ID,
-            predictions = new Prediction[p.predictions.Length]
-        };
-        foreach (string s in p.predictions)
+            request = _session.CreateRequest(_model, _predictionCount, _deadlineMs);
+            SetPending(true);
+            LogManager.Instance?.CreateServerRequestLog(request);
+            var timer = Stopwatch.StartNew();
+            var response = await socket.PredictAsync(request);
+            if (_destroyed || _socket != socket || !_session.IsCurrent(request)) return false;
+            if (!_session.TryReadPredictions(request, response, out var predictions)) return false;
+            _hasCurrentResult = true;
+            LogManager.Instance?.CreateServerResponseLog(predictions, timer.Elapsed.TotalMilliseconds, response);
+            OnPredictionsUpdated?.Invoke(predictions);
+            return true;
+        }
+        catch (Exception error)
         {
-            string[] contents = s.Split('_');
-            if (contents.Length < 2)
+            if (!_destroyed && _socket == socket && (request == null || _session.IsCurrent(request)))
             {
-                Debug.LogError("Couldn't split string");
-                return;
+                Debug.LogWarning("Prediction request failed: " + error.Message);
+                InvalidatePredictions();
             }
-            Prediction part = new Prediction
-            {
-                ID = p.ID,
-                Order = int.Parse(contents[1]),
-                Contents = contents[0]
-            };
-            //And add to group struct
-            set.predictions[part.Order - 1] = part;
+            return false;
         }
-        //After adding each prediction, add the prediction set to the ongoing list
-        _predictionList.Add(set);
-        //Compare the ID of the most recent added to the previous - if smaller ID, list is out of order, and needs to be re-sorted.
-        if (_predictionList.Count > 2 && _predictionList[_predictionList.Count - 1].ID < _predictionList[_predictionList.Count - 2].ID)
+        finally
         {
-            _predictionList = _predictionList.OrderBy(x => x.ID).ToList();
+            if (!_destroyed && _socket == socket && request != null && _session.IsCurrent(request))
+                SetPending(false);
         }
-        //Broadcast that the list was updated
-        OnPredictionsUpdated?.Invoke(_predictionList);
-        LogManager.Instance.CreateServerResponseLog(set);
+    }
+
+    private void InvalidatePredictions()
+    {
+        _session.Invalidate();
+        _hasCurrentResult = false;
+        SetPending(false);
+        OnPredictionsInvalidated?.Invoke();
+    }
+
+    private void SetPending(bool pending)
+    {
+        _pending = pending;
+        OnRequestStateChanged?.Invoke(pending);
+    }
+
+    private void OnDestroy()
+    {
+        _destroyed = true;
+        _allowReconnect = false;
+        _session.Invalidate();
+        _socket?.Dispose();
+        if (Instance == this) Instance = null;
     }
 }

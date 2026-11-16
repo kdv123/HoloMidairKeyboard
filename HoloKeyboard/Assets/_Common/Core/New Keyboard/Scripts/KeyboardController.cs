@@ -4,6 +4,8 @@ using UnityEngine;
 using System;
 using TMPro;
 using Unity.VisualScripting;
+using CSWebSockets;
+using CSWebSockets.Structs;
 public class KeyboardController : MonoBehaviour
 {
     public string VALUE;
@@ -37,6 +39,7 @@ public class KeyboardController : MonoBehaviour
     private string _currentInput = string.Empty;
     private bool _isShowingCursor = false;
     private bool _enableWordPrediction = false;
+    private bool _predictionDirty;
     public string CurrentInput
     {
         get
@@ -45,7 +48,11 @@ public class KeyboardController : MonoBehaviour
         }
         set
         {
+            value = value ?? "";
+            if (_currentInput == value) return;
             _currentInput = value;
+            _predictionDirty = true;
+            Client.Instance?.UpdateText(value);
             if (IsCurrentlyAlternate) _alternateInputsRemaining -= 1;
             UpdateKeys();
         }
@@ -68,6 +75,16 @@ public class KeyboardController : MonoBehaviour
     public void EnableWordPrediction()
     {
         _enableWordPrediction = true;
+        _predictionDirty = true;
+    }
+    private void LateUpdate()
+    {
+        // Submit/clear and other changes in one frame produce just the final snapshot.
+        if (_enableWordPrediction && _predictionDirty && Client.Instance != null)
+        {
+            _predictionDirty = false;
+            SendMessageToServer();
+        }
     }
     private void Update()
     {
@@ -89,7 +106,7 @@ public class KeyboardController : MonoBehaviour
 
     public void ClearInput()
     {
-        _currentInput = "";
+        CurrentInput = "";
     }
     /// <summary>
     /// Called by a key when it registers that a press has occured.
@@ -108,7 +125,6 @@ public class KeyboardController : MonoBehaviour
             default: OnBasicKey(value); break;
         }
         LogManager.Instance.CreateKeyEntryLog(value);
-        if(_enableWordPrediction) SendMessageToServer();
         PlayClickSound();
     }
     [ContextMenu("Play")]
@@ -132,7 +148,8 @@ public class KeyboardController : MonoBehaviour
     {
         //Don't backspace an empty string
         if (_currentInput.Length == 0) return;
-        CurrentInput = CurrentInput.Remove(CurrentInput.Length - 1, 1);
+        int count = CurrentInput.Length >= 2 && char.IsSurrogatePair(CurrentInput, CurrentInput.Length - 2) ? 2 : 1;
+        CurrentInput = CurrentInput.Remove(CurrentInput.Length - count, count);
     }
     /// <summary>
     /// Shift event triggered if a key's value was SHIFT
@@ -195,6 +212,18 @@ public class KeyboardController : MonoBehaviour
         string input = CurrentInput.Substring(0, CurrentInput.Length - numToDelete);
         input = input + text;
         CurrentInput = input;
+    }
+
+    public bool TryAcceptPrediction(Prediction prediction)
+    {
+        if (Client.Instance == null || !Client.Instance.IsCurrentPrediction(prediction) ||
+            prediction.SourceText != CurrentInput ||
+            !NoiselessPredictionSession.TryApplyReplacement(CurrentInput, prediction.Replacement, out string text))
+            return false;
+        CurrentInput = text + " ";
+        LogManager.Instance?.CreatePredictionAcceptedLog(prediction);
+        PlayClickSound();
+        return true;
     }
 
     /// <summary>

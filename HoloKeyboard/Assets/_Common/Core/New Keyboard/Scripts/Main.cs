@@ -1,43 +1,23 @@
-using System.Net.WebSockets;
-using System.Text;
-using CSWebSockets.Structs;
-using Newtonsoft.Json;
-using System;
 using System.Threading.Tasks;
 using UnityEngine;
-namespace CSWebSockets{
-    public class Main : MonoBehaviour{
+
+namespace CSWebSockets
+{
+    // Optional scene test helper: exercise the same connection and protocol as typing.
+    public class Main : MonoBehaviour
+    {
+        [SerializeField] private string _testInput = "this is a te";
+
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.Space))
-            {
-                _ = MainLoop();
-            }
+            if (Input.GetKeyDown(KeyCode.Space)) _ = MainLoop();
         }
-        readonly string address = "cheetah.sabu.mtu.edu:8765";
-        public async Task MainLoop(){
-            Debug.Log("Starting");
-            WebSocketClient client = new WebSocketClient("ws://" + address);
-            try{
-                Debug.Log("Awaiting");
-                await client.ConnectAsync();
-            }catch (WebSocketException){
-                Debug.LogError($"Unable to connect to server {address}");
-                return;
-            }
-            Debug.Log("Connected");
-            
-            // Put into struct
-            Message msg;
-            msg.ID = 0;
-            msg.message = "Hello There!";
-            
-            // Convert to string with SerializeObject, then to bytes
-            await client.SendBinaryAsync(Encoding.ASCII.GetBytes(JsonConvert.SerializeObject(msg)));
-            // Wait for response
-            await Task.Delay(10000);
-            await client.DisconnectAsync();
-           Debug.Log("Disconnected");
+
+        public async Task MainLoop()
+        {
+            if (Client.Instance == null) return;
+            if (await Client.Instance.TryConnect())
+                await Client.Instance.CreateMessage(_testInput);
         }
     }
 }
